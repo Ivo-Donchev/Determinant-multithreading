@@ -1,8 +1,10 @@
 #include <iostream>
+#include <fstream>
 #include <thread>
 #include <future>
 #include <random>
 #include <time.h>
+#include <ctype.h>
 
 using namespace std;
 
@@ -58,41 +60,6 @@ int get_index(int index, int &size)
     return index;
 }
 
-long int get_substrahend(int** &matrix, int size)
-{
-    long int substrahend = 0;
-    for(int i = 0; i < size; i++)
-    {
-        long int curr = 1;
-        for(int j = 0; j < size; j++)
-        {
-            int row_index = get_index(j, size);
-            int col_index = get_index(i - j, size);
-            curr *= matrix[row_index][col_index];
-        }
-        substrahend += curr;
-    }
-
-    return substrahend;
-}
-
-long int get_minuend(int** &matrix, int size)
-{
-    long int minuend = 0;
-    for(int i = 0; i < size; i++)
-    {
-        long int curr = 1;
-        for(int j = 0; j < size; j++)
-        {
-            int row_index = get_index(j, size);
-            int col_index = get_index(i + j, size);
-            curr *= matrix[row_index][col_index];
-        }
-        minuend += curr;
-    }
-
-    return minuend;
-}
 long int get_substrahend_multithreaded_recursively(int** &matrix, int size, int subthreads_number, int start=0)
 {
     if(subthreads_number == -1) return 0;
@@ -144,57 +111,13 @@ long int get_minuend_multithreaded_recursively(int** &matrix, int size, int subt
         minuend += curr;
     }
     long int minuend_val = subthread.get();
-    return minuend + minuend_val;
-
-}
-
-
-
-
-long int get_substrahend_multithreaded(int** &matrix, int start, int end)
-{
-    long int substrahend = 0;
-
-    for(int i = start; i < start + end; i++)
-    {
-        long int curr = 1;
-        for(int j = 0; j < end; j++)
-        {
-            int row_index = get_index(j, end);
-            int col_index = get_index(i - j, end);
-            curr *= matrix[row_index][col_index];
-        }
-        substrahend += curr;
-    }
-
-    return substrahend;
-}
-
-long int get_minuend_multithreaded(int** &matrix, int start, int end)
-{
-    long int minuend = 0;
-    for(int i = start; i < start + end; i++)
-    {
-        long int curr = 1;
-        for(int j = 0; j < end; j++)
-        {
-            int row_index = get_index(j, end);
-            int col_index = get_index(i + j, end);
-            curr *= matrix[row_index][col_index];
-        }
-        minuend += curr;
-    }
     
-    return minuend;
-
+    return minuend + minuend_val;
 }
-
-
-
 int get_determinant(int** &matrix, int &size, int num_of_threads)
 {
     int half_threads;
-    if(num_of_threads > size){
+    if(num_of_threads > 2*size + 3){
         num_of_threads = size;
     }
 
@@ -203,7 +126,7 @@ int get_determinant(int** &matrix, int &size, int num_of_threads)
 
     if(num_of_threads == 2){
         future<long int> t1 = async(std::launch::async, get_substrahend_multithreaded_recursively, std::ref(matrix), size, 0, 0);
-        return get_minuend(matrix, size) - t1.get();
+        return get_minuend_multithreaded_recursively(matrix, size, 0, 0) - t1.get();
     }
  
     // In case we have different threads for substrahend and minuend
@@ -214,70 +137,8 @@ int get_determinant(int** &matrix, int &size, int num_of_threads)
 
     future<long int> t1 = async(std::launch::async, get_minuend_multithreaded_recursively, std::ref(matrix), size, half_threads, 0); // without the current thread
     future<long int> t2 = async(std::launch::async, get_substrahend_multithreaded_recursively, std::ref(matrix), size, num_of_threads - half_threads, 0); // without the current thread
+    
     return t1.get() + t2.get();
-
-    // future<long int> minuend_parts_threads[num_of_threads];
-    // future<long int> substrahend_parts_threads[num_of_threads - half_threads];
-    // int minuend_moves;
-    // int substrahend_moves = size / (num_of_threads - half_threads);
-
-    // if(half_threads)
-    //     minuend_moves = size / half_threads;
-    // else
-    //     minuend_moves = 0;
-
-    // cout << half_threads << endl;
-    // cout << size << endl;
-    // cout << minuend_moves << endl;
-    // cout << substrahend_moves << endl;
-
-    // if(half_threads){
-    //     for(int i = 0; i < half_threads; i++)
-    //     {
-    //         if(i == half_threads-1){
-    //             minuend_parts_threads[i] = async(std::launch::async, get_minuend_multithreaded, std::ref(matrix), i*minuend_moves, size);
-    //             break;
-    //         }
-
-    //         minuend_parts_threads[i] = async(std::launch::async, get_minuend_multithreaded, std::ref(matrix), i*minuend_moves, (i + 1)*minuend_moves);
-    //     }
-    // }
-
-    // if(num_of_threads - half_threads)
-    // {
-    //     for(int i = 0; i < num_of_threads - half_threads; i++)
-    //     {
-    //         if(i == half_threads-1){
-    //             substrahend_parts_threads[i] = async(std::launch::async, get_substrahend_multithreaded, std::ref(matrix), i*substrahend_moves, size); 
-    //             break;
-    //         }
-
-    //         substrahend_parts_threads[i] = async(std::launch::async, get_substrahend_multithreaded, std::ref(matrix), i*substrahend_moves, (i+1)*substrahend_moves); 
-    //     }
-    // }
-
-    // int determinant = 0;
-    
-    // if(half_threads){
-    //     for(int i = 0; i < half_threads; i++)
-    //         determinant += minuend_parts_threads[i].get();
-    // }
-    // else{
-    //     determinant += get_minuend(matrix, size);
-    // }
-    
-    // if(num_of_threads - half_threads)
-    // {
-    //     for(int i = 0; i < num_of_threads - half_threads; i++)
-    //         determinant -= substrahend_parts_threads[i].get();
-    // }
-    // else{
-    //     get_substrahend(matrix, size);
-    // }
-
-    
-    // return determinant;
-
 }
 
 double diffclock(clock_t clock1,clock_t clock2)
@@ -286,20 +147,83 @@ double diffclock(clock_t clock1,clock_t clock2)
     double diffms=(diffticks)/(CLOCKS_PER_SEC/1000);
     return diffms;
 }
-int main()
+
+int get_number(string msg)
 {
-    const int num_of_threads = 3;
-    int size = 20;
-    int **matrix = initMatrix(size);
-    int minuend, substrahend;
+    for(int i = 0; i < msg.length(); i++)
+    {
+        if(!(isdigit(msg[i])))
+        {
+            return -1;
+        }
+    }
+    return stoi(msg);
+}
+int main(int argc, char* argv[])
+{
+    time_t begin = clock();    
+    string fcommand, scommand;
+    int num_of_threads;
+    if(argc == 4){
+        fcommand = argv[1];
+        scommand = argv[2];
+        num_of_threads = atoi(argv[3]);
+        if(!num_of_threads){
+            cout << "Error number of threads!!\n";
+            return 1;
+        }
+    }
+    else{
+        cout << "Error invalid arguments!!\n";
+        return 1;
+    }
 
+    
+    
+    if(fcommand == "-i"){ // file input 
+        ifstream file;
+        string size_str;
+        file.open(scommand);
+        file >> size_str;
+        
+        int size = stoi(size_str);
+        int** matrix = allocMatrix(size);
 
-    time_t start = clock();
-    cout << get_determinant(matrix, size, num_of_threads) << endl;
-    time_t end = clock();
+        string number;
+        for(int i = 0; i < size; i++)
+        {
+            for(int j = 0; j < size; j++)
+            {
+                file >> number;
+                matrix[i][j] = stoi(number);
 
-    deleteMatrix(matrix, size);
+            }
+        }
 
-    cout << endl << "Time: " << diffclock(end, start) << endl;
+        time_t start = clock();
+        cout << get_determinant(matrix, size, num_of_threads) << endl;
+        time_t end = clock();
+        cout << endl << "Total execution time for current run (millis): " << diffclock(end, start) << endl;
+
+        file.close();
+        deleteMatrix(matrix, size);
+    }
+    else if(fcommand == "-n"){ // random numbers
+        int size = get_number(scommand);
+        int **matrix = initMatrix(size);
+
+        time_t start = clock();
+        cout << get_determinant(matrix, size, num_of_threads) << endl;
+        time_t end = clock();
+        cout << endl << "Total execution time for current run (millis): " << diffclock(end, start) << endl;
+
+        deleteMatrix(matrix, size);
+    }
+    else{
+        cout << "Error: Invalid command!\n";
+    }
+    time_t finish = clock();
+    cout << endl << "Execution time for the entire program: " << diffclock(finish, begin) << endl;
+
     return 0;
 }
